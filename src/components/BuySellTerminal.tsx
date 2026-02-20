@@ -1,30 +1,45 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const BuySellTerminal = () => {
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [price, setPrice] = useState("64231.50");
   const [amount, setAmount] = useState("");
   const [orderType, setOrderType] = useState("Limit");
+  const [loading, setLoading] = useState(false);
 
   const total = price && amount ? (parseFloat(price) * parseFloat(amount)).toFixed(2) : "0.00";
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!amount || parseFloat(amount) <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
-    toast.success(
-      `${side === "buy" ? "Buy" : "Sell"} order placed: ${amount} BTC @ $${parseFloat(price).toLocaleString()}`
-    );
-    setAmount("");
+    setLoading(true);
+    try {
+      const { error } = await supabase.from("trade_history").insert({
+        asset: "BTC",
+        amount: parseFloat(amount),
+        price: parseFloat(price),
+        side,
+      });
+      if (error) throw error;
+      toast.success(
+        `${side === "buy" ? "Buy" : "Sell"} order placed: ${amount} BTC @ $${parseFloat(price).toLocaleString()}`
+      );
+      setAmount("");
+    } catch (err: any) {
+      toast.error("Failed to place order: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const percentages = [25, 50, 75, 100];
 
   return (
     <div className="flex flex-col bg-card p-2 gap-2">
-      {/* Buy / Sell toggle */}
       <div className="grid grid-cols-2 gap-1">
         <button
           onClick={() => setSide("buy")}
@@ -48,7 +63,6 @@ const BuySellTerminal = () => {
         </button>
       </div>
 
-      {/* Order type */}
       <div className="flex gap-2 text-[10px] text-muted-foreground">
         {["Limit", "Market", "Stop"].map((t) => (
           <button
@@ -61,7 +75,6 @@ const BuySellTerminal = () => {
         ))}
       </div>
 
-      {/* Price */}
       <div>
         <label className="text-[10px] text-muted-foreground">Price (USDT)</label>
         <input
@@ -72,7 +85,6 @@ const BuySellTerminal = () => {
         />
       </div>
 
-      {/* Amount */}
       <div>
         <label className="text-[10px] text-muted-foreground">Amount (BTC)</label>
         <input
@@ -84,7 +96,6 @@ const BuySellTerminal = () => {
         />
       </div>
 
-      {/* Quick percentages */}
       <div className="grid grid-cols-4 gap-1">
         {percentages.map((p) => (
           <button
@@ -97,22 +108,21 @@ const BuySellTerminal = () => {
         ))}
       </div>
 
-      {/* Total */}
       <div className="flex justify-between text-[10px] text-muted-foreground">
         <span>Total</span>
         <span className="text-foreground">{parseFloat(total).toLocaleString()} USDT</span>
       </div>
 
-      {/* Submit */}
       <button
         onClick={handleSubmit}
-        className={`w-full py-2 text-xs font-bold rounded transition-colors ${
+        disabled={loading}
+        className={`w-full py-2 text-xs font-bold rounded transition-colors disabled:opacity-50 ${
           side === "buy"
             ? "bg-success hover:bg-success/90 text-success-foreground"
             : "bg-danger hover:bg-danger/90 text-danger-foreground"
         }`}
       >
-        {side === "buy" ? "Buy BTC" : "Sell BTC"}
+        {loading ? "Placing..." : side === "buy" ? "Buy BTC" : "Sell BTC"}
       </button>
     </div>
   );

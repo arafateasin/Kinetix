@@ -14,7 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      trade_history: {
+        Row: {
+          amount: number
+          asset: string
+          created_at: string
+          id: string
+          price: number
+          side: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          asset?: string
+          created_at?: string
+          id?: string
+          price: number
+          side?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          asset?: string
+          created_at?: string
+          id?: string
+          price?: number
+          side?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_wallets: {
+        Row: {
+          created_at: string
+          id: string
+          total_balance: number
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          total_balance?: number
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          total_balance?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
