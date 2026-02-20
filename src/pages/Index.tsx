@@ -1,11 +1,39 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import TopNavBar from "@/components/TopNavBar";
+import MarketsList from "@/components/MarketsList";
+import TradingChart from "@/components/TradingChart";
+import OrderBook from "@/components/OrderBook";
+import BuySellTerminal from "@/components/BuySellTerminal";
+import TradeHistory from "@/components/TradeHistory";
 
 const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <div className="flex flex-col h-screen overflow-hidden bg-background">
+      <TopNavBar />
+      <div className="flex-1 grid grid-cols-[240px_1fr_280px] grid-rows-[1fr_240px] gap-px bg-border overflow-hidden">
+        {/* Left: Markets */}
+        <div className="row-span-2 overflow-hidden">
+          <MarketsList />
+        </div>
+
+        {/* Center-Top: Chart */}
+        <div className="overflow-hidden">
+          <TradingChart />
+        </div>
+
+        {/* Right: Order Book + Buy/Sell */}
+        <div className="row-span-2 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-hidden">
+            <OrderBook />
+          </div>
+          <div className="border-t border-border">
+            <BuySellTerminal />
+          </div>
+        </div>
+
+        {/* Center-Bottom: Trade History */}
+        <div className="overflow-hidden">
+          <TradeHistory />
+        </div>
       </div>
     </div>
   );
