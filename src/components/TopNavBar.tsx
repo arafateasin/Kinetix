@@ -1,10 +1,22 @@
+import { useEffect, useState } from "react";
 import { Wallet, Bell, User, ChevronDown } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-interface TopNavBarProps {
-  balance?: number;
-}
+const TopNavBar = () => {
+  const [balance, setBalance] = useState<number>(0);
 
-const TopNavBar = ({ balance = 12453.82 }: TopNavBarProps) => {
+  useEffect(() => {
+    const fetchBalance = async () => {
+      const { data } = await supabase
+        .from("user_wallets")
+        .select("total_balance")
+        .limit(1)
+        .maybeSingle();
+      if (data) setBalance(Number(data.total_balance));
+    };
+    fetchBalance();
+  }, []);
+
   return (
     <header className="h-12 flex items-center justify-between px-4 bg-card border-b border-border">
       <div className="flex items-center gap-6">
