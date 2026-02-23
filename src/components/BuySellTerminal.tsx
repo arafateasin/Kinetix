@@ -1,13 +1,39 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 const BuySellTerminal = () => {
   const [side, setSide] = useState<"buy" | "sell">("buy");
-  const [price, setPrice] = useState("64231.50");
+  const [price, setPrice] = useState("");
   const [amount, setAmount] = useState("");
   const [orderType, setOrderType] = useState("Limit");
   const [loading, setLoading] = useState(false);
+
+  // Fetch live BTC price
+  useEffect(() => {
+    const fetchPrice = async () => {
+      try {
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const res = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/crypto-data?action=price&coin=bitcoin`,
+          {
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+          }
+        );
+        const data = await res.json();
+        if (data?.bitcoin?.usd) {
+          setPrice(data.bitcoin.usd.toString());
+        }
+      } catch (err) {
+        console.error("Failed to fetch price:", err);
+      }
+    };
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   const total = price && amount ? (parseFloat(price) * parseFloat(amount)).toFixed(2) : "0.00";
 
@@ -18,6 +44,9 @@ const BuySellTerminal = () => {
     }
     setLoading(true);
     try {
+      const tradeTotal = parseFloat(price) * parseFloat(amount);
+
+      // Insert trade
       const { error } = await supabase.from("trade_history").insert({
         asset: "BTC",
         amount: parseFloat(amount),
@@ -25,6 +54,25 @@ const BuySellTerminal = () => {
         side,
       });
       if (error) throw error;
+
+      // Update wallet balance
+      const { data: wallet } = await supabase
+        .from("user_wallets")
+        .select("id, total_balance")
+        .limit(1)
+        .maybeSingle();
+
+      if (wallet) {
+        const newBalance = side === "buy"
+          ? Number(wallet.total_balance) - tradeTotal
+          : Number(wallet.total_balance) + tradeTotal;
+
+        await supabase
+          .from("user_wallets")
+          .update({ total_balance: Math.max(0, newBalance) })
+          .eq("id", wallet.id);
+      }
+
       toast.success(
         `${side === "buy" ? "Buy" : "Sell"} order placed: ${amount} BTC @ $${parseFloat(price).toLocaleString()}`
       );
