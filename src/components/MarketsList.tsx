@@ -1,32 +1,84 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Search, Star } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-const MARKETS = [
-  { pair: "BTC/USDT", price: "64,231.50", change: "+2.45%", up: true, fav: true },
-  { pair: "ETH/USDT", price: "3,421.80", change: "+1.87%", up: true, fav: true },
-  { pair: "BNB/USDT", price: "584.30", change: "-0.32%", up: false, fav: false },
-  { pair: "SOL/USDT", price: "142.65", change: "+5.12%", up: true, fav: false },
-  { pair: "XRP/USDT", price: "0.5234", change: "-1.05%", up: false, fav: false },
-  { pair: "ADA/USDT", price: "0.4521", change: "+0.78%", up: true, fav: false },
-  { pair: "DOGE/USDT", price: "0.1245", change: "+3.21%", up: true, fav: false },
-  { pair: "DOT/USDT", price: "7.234", change: "-0.45%", up: false, fav: false },
-  { pair: "AVAX/USDT", price: "35.42", change: "+2.10%", up: true, fav: false },
-  { pair: "LINK/USDT", price: "14.87", change: "+1.34%", up: true, fav: false },
-  { pair: "MATIC/USDT", price: "0.8912", change: "-0.67%", up: false, fav: false },
-  { pair: "UNI/USDT", price: "9.234", change: "+0.45%", up: true, fav: false },
-];
-
-const tabs = ["Favorites", "All", "Spot"];
+interface MarketItem {
+  id: string;
+  symbol: string;
+  name: string;
+  current_price: number;
+  price_change_percentage_24h: number;
+  fav: boolean;
+}
 
 const MarketsList = () => {
   const [activeTab, setActiveTab] = useState("All");
   const [search, setSearch] = useState("");
+  const [markets, setMarkets] = useState<MarketItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set(["bitcoin", "ethereum"]));
 
-  const filtered = MARKETS.filter((m) => {
+  const fetchMarkets = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("crypto-data", {
+        body: null,
+        method: "GET",
+      });
+      // Use query params via direct fetch since invoke doesn't support query params well
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/crypto-data?action=markets`,
+        {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
+      const rawData = await res.json();
+      if (Array.isArray(rawData)) {
+        setMarkets(
+          rawData.map((item: any) => ({
+            id: item.id,
+            symbol: item.symbol?.toUpperCase() || "",
+            name: item.name || "",
+            current_price: item.current_price || 0,
+            price_change_percentage_24h: item.price_change_percentage_24h || 0,
+            fav: favorites.has(item.id),
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to fetch markets:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [favorites]);
+
+  useEffect(() => {
+    fetchMarkets();
+    const interval = setInterval(fetchMarkets, 30000); // refresh every 30s
+    return () => clearInterval(interval);
+  }, [fetchMarkets]);
+
+  const toggleFav = (id: string) => {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setMarkets((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, fav: !m.fav } : m))
+    );
+  };
+
+  const filtered = markets.filter((m) => {
     if (activeTab === "Favorites") return m.fav;
-    if (search) return m.pair.toLowerCase().includes(search.toLowerCase());
+    if (search) return m.symbol.toLowerCase().includes(search.toLowerCase()) || m.name.toLowerCase().includes(search.toLowerCase());
     return true;
   });
+
+  const tabs = ["Favorites", "All", "Spot"];
 
   return (
     <div className="flex flex-col h-full bg-card">
@@ -62,21 +114,33 @@ const MarketsList = () => {
         <span>Change</span>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {filtered.map((m) => (
-          <div
-            key={m.pair}
-            className="flex items-center justify-between px-2 py-1.5 hover:bg-secondary/50 cursor-pointer text-xs"
-          >
-            <div className="flex items-center gap-1.5">
-              <Star
-                className={`h-3 w-3 ${m.fav ? "text-primary fill-primary" : "text-muted-foreground"}`}
-              />
-              <span className="text-foreground font-medium">{m.pair}</span>
+        {loading ? (
+          <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">Loading...</div>
+        ) : (
+          filtered.map((m) => (
+            <div
+              key={m.id}
+              className="flex items-center justify-between px-2 py-1.5 hover:bg-secondary/50 cursor-pointer text-xs"
+            >
+              <div className="flex items-center gap-1.5">
+                <Star
+                  className={`h-3 w-3 cursor-pointer ${m.fav ? "text-primary fill-primary" : "text-muted-foreground"}`}
+                  onClick={() => toggleFav(m.id)}
+                />
+                <span className="text-foreground font-medium">{m.symbol}/USDT</span>
+              </div>
+              <span className="text-foreground">
+                {m.current_price >= 1
+                  ? m.current_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : m.current_price.toFixed(4)}
+              </span>
+              <span className={m.price_change_percentage_24h >= 0 ? "text-success" : "text-danger"}>
+                {m.price_change_percentage_24h >= 0 ? "+" : ""}
+                {m.price_change_percentage_24h.toFixed(2)}%
+              </span>
             </div>
-            <span className="text-foreground">{m.price}</span>
-            <span className={m.up ? "text-success" : "text-danger"}>{m.change}</span>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );

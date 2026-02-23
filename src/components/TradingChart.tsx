@@ -1,30 +1,89 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, CandlestickSeries } from "lightweight-charts";
 import { TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
 
-const generateCandleData = () => {
-  const data = [];
-  let time = new Date("2024-01-01").getTime() / 1000;
-  let open = 58000;
-  for (let i = 0; i < 200; i++) {
-    const close = open + (Math.random() - 0.48) * 800;
-    const high = Math.max(open, close) + Math.random() * 400;
-    const low = Math.min(open, close) - Math.random() * 400;
-    data.push({
-      time: time as any,
-      open: Math.round(open * 100) / 100,
-      high: Math.round(high * 100) / 100,
-      low: Math.round(low * 100) / 100,
-      close: Math.round(close * 100) / 100,
-    });
-    time += 86400;
-    open = close;
-  }
-  return data;
-};
-
 const TradingChart = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<any>(null);
+  const seriesRef = useRef<any>(null);
+  const [interval, setInterval_] = useState("1D");
+  const [priceInfo, setPriceInfo] = useState({
+    price: 0,
+    change24h: 0,
+    vol24h: "",
+    high24h: 0,
+    low24h: 0,
+  });
+
+  const daysMap: Record<string, string> = {
+    "1m": "1",
+    "5m": "1",
+    "15m": "1",
+    "1H": "7",
+    "4H": "14",
+    "1D": "90",
+    "1W": "365",
+  };
+
+  const fetchCandles = async (days: string) => {
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/crypto-data?action=candles&coin=bitcoin&days=${days}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        return data.map((d: number[]) => ({
+          time: (d[0] / 1000) as any,
+          open: d[1],
+          high: d[2],
+          low: d[3],
+          close: d[4],
+        }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch candles:", err);
+    }
+    return null;
+  };
+
+  const fetchPrice = async () => {
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/crypto-data?action=price&coin=bitcoin`,
+        {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
+      const data = await res.json();
+      if (data?.bitcoin) {
+        const b = data.bitcoin;
+        setPriceInfo({
+          price: b.usd || 0,
+          change24h: b.usd_24h_change || 0,
+          vol24h: b.usd_24h_vol ? (b.usd_24h_vol / 1e9).toFixed(2) + "B" : "N/A",
+          high24h: b.usd_24h_high || 0,
+          low24h: b.usd_24h_low || 0,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch price:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPrice();
+    const timer = window.setInterval(fetchPrice, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -43,13 +102,8 @@ const TradingChart = () => {
         vertLine: { color: "hsl(45, 88%, 50%)", width: 1, style: 2 },
         horzLine: { color: "hsl(45, 88%, 50%)", width: 1, style: 2 },
       },
-      timeScale: {
-        borderColor: "hsl(225, 12%, 16%)",
-        timeVisible: true,
-      },
-      rightPriceScale: {
-        borderColor: "hsl(225, 12%, 16%)",
-      },
+      timeScale: { borderColor: "hsl(225, 12%, 16%)", timeVisible: true },
+      rightPriceScale: { borderColor: "hsl(225, 12%, 16%)" },
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
@@ -61,8 +115,17 @@ const TradingChart = () => {
       wickDownColor: "hsl(0, 72%, 51%)",
     });
 
-    candleSeries.setData(generateCandleData());
-    chart.timeScale().fitContent();
+    chartRef.current = chart;
+    seriesRef.current = candleSeries;
+
+    const loadData = async () => {
+      const candles = await fetchCandles(daysMap[interval]);
+      if (candles && candles.length > 0) {
+        candleSeries.setData(candles);
+        chart.timeScale().fitContent();
+      }
+    };
+    loadData();
 
     const handleResize = () => {
       if (containerRef.current) {
@@ -80,11 +143,14 @@ const TradingChart = () => {
       resizeObserver.disconnect();
       chart.remove();
     };
-  }, []);
+  }, [interval]);
+
+  const handleIntervalChange = (t: string) => {
+    setInterval_(t);
+  };
 
   return (
     <div className="flex flex-col h-full bg-card">
-      {/* Stats header */}
       <div className="flex items-center gap-6 px-3 py-2 border-b border-border text-xs">
         <div className="flex items-center gap-2">
           <span className="text-foreground font-bold text-sm">BTC/USDT</span>
@@ -92,33 +158,41 @@ const TradingChart = () => {
         </div>
         <div>
           <span className="text-muted-foreground">Price </span>
-          <span className="text-success font-semibold">64,231.50</span>
+          <span className={`font-semibold ${priceInfo.change24h >= 0 ? "text-success" : "text-danger"}`}>
+            {priceInfo.price ? priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "..."}
+          </span>
         </div>
         <div className="flex items-center gap-1">
-          <TrendingUp className="h-3 w-3 text-success" />
+          {priceInfo.change24h >= 0 ? (
+            <TrendingUp className="h-3 w-3 text-success" />
+          ) : (
+            <TrendingDown className="h-3 w-3 text-danger" />
+          )}
           <span className="text-muted-foreground">24h </span>
-          <span className="text-success">+2.45%</span>
+          <span className={priceInfo.change24h >= 0 ? "text-success" : "text-danger"}>
+            {priceInfo.change24h >= 0 ? "+" : ""}{priceInfo.change24h.toFixed(2)}%
+          </span>
         </div>
         <div>
           <span className="text-muted-foreground">24h Vol </span>
-          <span className="text-foreground">1.23B</span>
+          <span className="text-foreground">{priceInfo.vol24h || "..."}</span>
         </div>
         <div>
           <span className="text-muted-foreground">High </span>
-          <span className="text-foreground">65,102.00</span>
+          <span className="text-foreground">{priceInfo.high24h ? priceInfo.high24h.toLocaleString() : "..."}</span>
         </div>
         <div>
           <span className="text-muted-foreground">Low </span>
-          <span className="text-foreground">62,845.30</span>
+          <span className="text-foreground">{priceInfo.low24h ? priceInfo.low24h.toLocaleString() : "..."}</span>
         </div>
       </div>
-      {/* Time interval bar */}
       <div className="flex items-center gap-1 px-3 py-1 border-b border-border text-[10px] text-muted-foreground">
-        {["1m", "5m", "15m", "1H", "4H", "1D", "1W"].map((t, i) => (
+        {["1m", "5m", "15m", "1H", "4H", "1D", "1W"].map((t) => (
           <button
             key={t}
+            onClick={() => handleIntervalChange(t)}
             className={`px-2 py-0.5 rounded transition-colors ${
-              t === "1D" ? "bg-primary/10 text-primary" : "hover:text-foreground"
+              t === interval ? "bg-primary/10 text-primary" : "hover:text-foreground"
             }`}
           >
             {t}
@@ -129,7 +203,6 @@ const TradingChart = () => {
           <span>Indicators</span>
         </div>
       </div>
-      {/* Chart */}
       <div ref={containerRef} className="flex-1 min-h-0" />
     </div>
   );
