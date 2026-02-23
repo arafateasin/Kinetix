@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, CandlestickSeries } from "lightweight-charts";
 import { TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
+import { useMarket } from "@/contexts/MarketContext";
+import { toast } from "sonner";
 
 const TradingChart = () => {
+  const { selectedCoinId, selectedSymbol, selectedCoin } = useMarket();
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const seriesRef = useRef<any>(null);
@@ -28,16 +31,23 @@ const TradingChart = () => {
   const fetchCandles = async (days: string) => {
     try {
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+      if (!projectId || !apiKey) {
+        throw new Error("Missing Supabase configuration");
+      }
+
       const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/crypto-data?action=candles&coin=bitcoin&days=${days}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-        }
+        `https://${projectId}.supabase.co/functions/v1/crypto-data?action=candles&coin=${selectedCoinId}&days=${days}`,
+        { headers: { Authorization: `Bearer ${apiKey}` } },
       );
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch candles: ${res.status}`);
+      }
+
       const data = await res.json();
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && data.length > 0) {
         return data.map((d: number[]) => ({
           time: (d[0] / 1000) as any,
           open: d[1],
@@ -46,44 +56,58 @@ const TradingChart = () => {
           close: d[4],
         }));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch candles:", err);
+      toast.error(
+        "Failed to load chart data: " + (err.message || "Unknown error"),
+      );
     }
-    return null;
   };
 
   const fetchPrice = async () => {
     try {
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+      if (!projectId || !apiKey) {
+        throw new Error("Missing Supabase configuration");
+      }
+
       const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/crypto-data?action=price&coin=bitcoin`,
-        {
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-        }
+        `https://${projectId}.supabase.co/functions/v1/crypto-data?action=price&coin=${selectedCoinId}`,
+        { headers: { Authorization: `Bearer ${apiKey}` } },
       );
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch price: ${res.status}`);
+      }
+
       const data = await res.json();
-      if (data?.bitcoin) {
-        const b = data.bitcoin;
+      if (data?.[selectedCoinId]) {
+        const coinData = data[selectedCoinId];
         setPriceInfo({
-          price: b.usd || 0,
-          change24h: b.usd_24h_change || 0,
-          vol24h: b.usd_24h_vol ? (b.usd_24h_vol / 1e9).toFixed(2) + "B" : "N/A",
-          high24h: b.usd_24h_high || 0,
-          low24h: b.usd_24h_low || 0,
+          price: coinData.usd || 0,
+          change24h: coinData.usd_24h_change || 0,
+          vol24h: coinData.usd_24h_vol
+            ? (coinData.usd_24h_vol / 1e9).toFixed(2) + "B"
+            : "N/A",
+          high24h: coinData.usd_24h_high || 0,
+          low24h: coinData.usd_24h_low || 0,
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch price:", err);
+      toast.error(
+        "Failed to load price data: " + (err.message || "Unknown error"),
+      );
     }
   };
 
   useEffect(() => {
     fetchPrice();
-    const timer = window.setInterval(fetchPrice, 30000);
+    const timer = window.setInterval(fetchPrice, 10000); // Update every 10s
     return () => window.clearInterval(timer);
-  }, []);
+  }, [selectedCoinId]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -154,12 +178,23 @@ const TradingChart = () => {
       <div className="flex items-center gap-6 px-3 py-2 border-b border-border text-xs">
         <div className="flex items-center gap-2">
           <span className="text-foreground font-bold text-sm">BTC/USDT</span>
-          <span className="text-primary text-xs bg-primary/10 px-1.5 py-0.5 rounded">Spot</span>
+          <span className="text-primary text-xs bg-primary/10 px-1.5 py-0.5 rounded">
+            Spot
+          </span>
         </div>
         <div>
           <span className="text-muted-foreground">Price </span>
-          <span className={`font-semibold ${priceInfo.change24h >= 0 ? "text-success" : "text-danger"}`}>
-            {priceInfo.price ? priceInfo.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "..."}
+          <span
+            className={`font-semibold ${
+              priceInfo.change24h >= 0 ? "text-success" : "text-danger"
+            }`}
+          >
+            {priceInfo.price
+              ? priceInfo.price.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+              : "..."}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -169,8 +204,13 @@ const TradingChart = () => {
             <TrendingDown className="h-3 w-3 text-danger" />
           )}
           <span className="text-muted-foreground">24h </span>
-          <span className={priceInfo.change24h >= 0 ? "text-success" : "text-danger"}>
-            {priceInfo.change24h >= 0 ? "+" : ""}{priceInfo.change24h.toFixed(2)}%
+          <span
+            className={
+              priceInfo.change24h >= 0 ? "text-success" : "text-danger"
+            }
+          >
+            {priceInfo.change24h >= 0 ? "+" : ""}
+            {priceInfo.change24h.toFixed(2)}%
           </span>
         </div>
         <div>
@@ -179,11 +219,15 @@ const TradingChart = () => {
         </div>
         <div>
           <span className="text-muted-foreground">High </span>
-          <span className="text-foreground">{priceInfo.high24h ? priceInfo.high24h.toLocaleString() : "..."}</span>
+          <span className="text-foreground">
+            {priceInfo.high24h ? priceInfo.high24h.toLocaleString() : "..."}
+          </span>
         </div>
         <div>
           <span className="text-muted-foreground">Low </span>
-          <span className="text-foreground">{priceInfo.low24h ? priceInfo.low24h.toLocaleString() : "..."}</span>
+          <span className="text-foreground">
+            {priceInfo.low24h ? priceInfo.low24h.toLocaleString() : "..."}
+          </span>
         </div>
       </div>
       <div className="flex items-center gap-1 px-3 py-1 border-b border-border text-[10px] text-muted-foreground">
@@ -192,7 +236,9 @@ const TradingChart = () => {
             key={t}
             onClick={() => handleIntervalChange(t)}
             className={`px-2 py-0.5 rounded transition-colors ${
-              t === interval ? "bg-primary/10 text-primary" : "hover:text-foreground"
+              t === interval
+                ? "bg-primary/10 text-primary"
+                : "hover:text-foreground"
             }`}
           >
             {t}

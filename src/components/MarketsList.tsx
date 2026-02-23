@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Search, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useMarket } from "@/contexts/MarketContext";
+import { toast } from "sonner";
 
 interface MarketItem {
   id: string;
@@ -12,28 +14,37 @@ interface MarketItem {
 }
 
 const MarketsList = () => {
+  const { selectedCoinId, setSelectedCoin } = useMarket();
   const [activeTab, setActiveTab] = useState("All");
   const [search, setSearch] = useState("");
   const [markets, setMarkets] = useState<MarketItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [favorites, setFavorites] = useState<Set<string>>(new Set(["bitcoin", "ethereum"]));
+  const [favorites, setFavorites] = useState<Set<string>>(
+    new Set(["bitcoin", "ethereum"]),
+  );
 
   const fetchMarkets = useCallback(async () => {
     try {
-      const { data, error } = await supabase.functions.invoke("crypto-data", {
-        body: null,
-        method: "GET",
-      });
-      // Use query params via direct fetch since invoke doesn't support query params well
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+      if (!projectId || !apiKey) {
+        throw new Error("Missing Supabase configuration");
+      }
+
       const res = await fetch(
         `https://${projectId}.supabase.co/functions/v1/crypto-data?action=markets`,
         {
           headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${apiKey}`,
           },
-        }
+        },
       );
+
+      if (!res.ok) {
+        throw new Error(`API request failed: ${res.status}`);
+      }
+
       const rawData = await res.json();
       if (Array.isArray(rawData)) {
         setMarkets(
@@ -44,11 +55,14 @@ const MarketsList = () => {
             current_price: item.current_price || 0,
             price_change_percentage_24h: item.price_change_percentage_24h || 0,
             fav: favorites.has(item.id),
-          }))
+          })),
         );
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch markets:", err);
+      toast.error(
+        "Failed to load market data: " + (err.message || "Unknown error"),
+      );
     } finally {
       setLoading(false);
     }
@@ -68,13 +82,17 @@ const MarketsList = () => {
       return next;
     });
     setMarkets((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, fav: !m.fav } : m))
+      prev.map((m) => (m.id === id ? { ...m, fav: !m.fav } : m)),
     );
   };
 
   const filtered = markets.filter((m) => {
     if (activeTab === "Favorites") return m.fav;
-    if (search) return m.symbol.toLowerCase().includes(search.toLowerCase()) || m.name.toLowerCase().includes(search.toLowerCase());
+    if (search)
+      return (
+        m.symbol.toLowerCase().includes(search.toLowerCase()) ||
+        m.name.toLowerCase().includes(search.toLowerCase())
+      );
     return true;
   });
 
@@ -113,28 +131,53 @@ const MarketsList = () => {
         <span>Price</span>
         <span>Change</span>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        {loading ? (
-          <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">Loading...</div>
+      <div className="overflow-y-auto flex-1">
+        {filtered.length === 0 ? (
+          <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
+            No markets found
+          </div>
         ) : (
           filtered.map((m) => (
             <div
               key={m.id}
-              className="flex items-center justify-between px-2 py-1.5 hover:bg-secondary/50 cursor-pointer text-xs"
+              onClick={() => setSelectedCoin(m.id, m.symbol, m.name)}
+              className={`flex items-center justify-between px-2 py-1.5 hover:bg-secondary/50 cursor-pointer text-xs transition-colors ${
+                selectedCoinId === m.id
+                  ? "bg-primary/10 border-l-2 border-primary"
+                  : ""
+              }`}
             >
               <div className="flex items-center gap-1.5">
                 <Star
-                  className={`h-3 w-3 cursor-pointer ${m.fav ? "text-primary fill-primary" : "text-muted-foreground"}`}
-                  onClick={() => toggleFav(m.id)}
+                  className={`h-3 w-3 cursor-pointer ${
+                    m.fav
+                      ? "text-primary fill-primary"
+                      : "text-muted-foreground"
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFav(m.id);
+                  }}
                 />
-                <span className="text-foreground font-medium">{m.symbol}/USDT</span>
+                <span className="text-foreground font-medium">
+                  {m.symbol}/USDT
+                </span>
               </div>
               <span className="text-foreground">
                 {m.current_price >= 1
-                  ? m.current_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  ? m.current_price.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
                   : m.current_price.toFixed(4)}
               </span>
-              <span className={m.price_change_percentage_24h >= 0 ? "text-success" : "text-danger"}>
+              <span
+                className={
+                  m.price_change_percentage_24h >= 0
+                    ? "text-success"
+                    : "text-danger"
+                }
+              >
                 {m.price_change_percentage_24h >= 0 ? "+" : ""}
                 {m.price_change_percentage_24h.toFixed(2)}%
               </span>

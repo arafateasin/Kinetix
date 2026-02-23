@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface Trade {
   id: string;
@@ -7,6 +8,7 @@ interface Trade {
   amount: number;
   created_at: string;
   side: string;
+  asset: string;
 }
 
 const TradeHistory = () => {
@@ -15,15 +17,24 @@ const TradeHistory = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchTrades = async () => {
-    const { data, error } = await supabase
-      .from("trade_history")
-      .select("id, price, amount, created_at, side")
-      .order("created_at", { ascending: false })
-      .limit(30);
+    try {
+      const { data, error } = await supabase
+        .from("trade_history")
+        .select("id, price, amount, created_at, side, asset")
+        .order("created_at", { ascending: false })
+        .limit(30);
 
-    if (data) setTrades(data);
-    if (error) console.error("Failed to fetch trades:", error);
-    setLoading(false);
+      if (error) {
+        throw new Error("Failed to fetch trades: " + error.message);
+      }
+
+      if (data) setTrades(data);
+    } catch (err: any) {
+      console.error("Failed to fetch trades:", err);
+      toast.error(err.message || "Failed to load trade history");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -37,9 +48,14 @@ const TradeHistory = () => {
         { event: "INSERT", schema: "public", table: "trade_history" },
         (payload) => {
           setTrades((prev) => [payload.new as Trade, ...prev].slice(0, 30));
-        }
+        },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIPTION_ERROR") {
+          console.error("Failed to subscribe to trade updates");
+          toast.error("Real-time updates unavailable");
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -85,20 +101,30 @@ const TradeHistory = () => {
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">Loading...</div>
+              <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
+                Loading...
+              </div>
             ) : trades.length === 0 ? (
-              <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">No trades yet</div>
+              <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
+                No trades yet
+              </div>
             ) : (
               trades.map((t) => (
                 <div
                   key={t.id}
                   className="grid grid-cols-3 px-3 py-[2px] text-[11px] hover:bg-secondary/30"
                 >
-                  <span className={t.side === "buy" ? "text-success" : "text-danger"}>
+                  <span
+                    className={
+                      t.side === "buy" ? "text-success" : "text-danger"
+                    }
+                  >
                     {t.price.toLocaleString()}
                   </span>
                   <span className="text-right text-foreground">{t.amount}</span>
-                  <span className="text-right text-muted-foreground">{formatTime(t.created_at)}</span>
+                  <span className="text-right text-muted-foreground">
+                    {formatTime(t.created_at)}
+                  </span>
                 </div>
               ))
             )}
