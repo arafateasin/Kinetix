@@ -12,6 +12,21 @@ dist
 dist-ssr
 *.local
 
+# Environment variables & secrets — NEVER commit these
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+supabase/.env
+supabase/seed.sql
+
+# Supabase local dev (contains DB credentials)
+supabase/.branches
+supabase/.temp
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
