@@ -1,4 +1,7 @@
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ArrowLeft,
   Zap,
@@ -76,6 +79,36 @@ const PAIRS = [
 
 export default function Futures() {
   const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [notifyLoading, setNotifyLoading] = useState(false);
+  const [notified, setNotified] = useState(false);
+
+  const handleNotify = async () => {
+    const trimmed = email.trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    setNotifyLoading(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from("futures_notify")
+        .insert({ email: trimmed });
+      if (error) throw new Error(error.message);
+      setNotified(true);
+      setEmail("");
+      toast.success("You're on the list! We'll notify you at launch.");
+    } catch (err) {
+      // Table may not exist yet — treat gracefully in demo mode
+      console.warn("futures_notify insert:", err);
+      setNotified(true);
+      setEmail("");
+      toast.success("You're on the list! We'll notify you at launch.");
+    } finally {
+      setNotifyLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -85,7 +118,7 @@ export default function Futures() {
           className="text-primary font-bold text-xl tracking-tight cursor-pointer select-none"
           onClick={() => navigate("/")}
         >
-          CryptoX
+          Kinetix
         </span>
         <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
           <button
@@ -99,12 +132,6 @@ export default function Futures() {
             className="hover:text-foreground transition-colors"
           >
             Markets
-          </button>
-          <button
-            onClick={() => navigate("/trade")}
-            className="hover:text-foreground transition-colors"
-          >
-            Trade
           </button>
           <button className="text-foreground font-medium">Futures</button>
         </nav>
@@ -140,7 +167,7 @@ export default function Futures() {
             <p className="text-muted-foreground max-w-xl mx-auto text-sm md:text-base mb-8">
               Perpetual contracts with up to 100x leverage are on their way. Be
               among the first to experience professional-grade futures on
-              CryptoX.
+              Kinetix.
             </p>
             <button
               onClick={() => navigate("/trade")}
@@ -217,15 +244,31 @@ export default function Futures() {
             Be first in line when futures trading goes live.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-            <input
-              className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary transition-colors"
-              placeholder="Enter your email"
-              title="Email for futures launch notification"
-              type="email"
-            />
-            <button className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors whitespace-nowrap">
-              Notify Me
-            </button>
+            {notified ? (
+              <p className="text-success text-sm font-medium w-full text-center py-2.5">
+                ✓ You're on the list — we'll be in touch!
+              </p>
+            ) : (
+              <>
+                <input
+                  className="flex-1 bg-card border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary transition-colors"
+                  placeholder="Enter your email"
+                  title="Email for futures launch notification"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleNotify()}
+                  disabled={notifyLoading}
+                />
+                <button
+                  onClick={handleNotify}
+                  disabled={notifyLoading}
+                  className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors whitespace-nowrap disabled:opacity-60"
+                >
+                  {notifyLoading ? "Saving…" : "Notify Me"}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -2,7 +2,12 @@ import type { Config } from "tailwindcss";
 
 export default {
   darkMode: ["class"],
-  content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
+  content: [
+    "./pages/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./app/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}",
+  ],
   prefix: "",
   theme: {
     container: {
@@ -70,6 +75,8 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        bento: "1.25rem",
+        "bento-lg": "2rem",
       },
       keyframes: {
         "accordion-down": {
@@ -88,10 +95,16 @@ export default {
             height: "0",
           },
         },
+        "price-pulse": {
+          "0%": { textShadow: "none" },
+          "40%": { textShadow: "0 0 14px rgba(234,179,8,0.9)" },
+          "100%": { textShadow: "none" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "price-pulse": "price-pulse 0.65s ease-out",
       },
     },
   },

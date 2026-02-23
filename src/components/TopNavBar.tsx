@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Wallet, Bell, User, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,8 +6,19 @@ import { toast } from "sonner";
 
 const TopNavBar = () => {
   const [balance, setBalance] = useState<number>(0);
+  const [pulseBalance, setPulseBalance] = useState(false);
+  const prevBalanceRef = useRef<number>(0);
   const navigate = useNavigate();
   const location = useLocation();
+
+  /**
+   * Integration Approach — Real-time Wallet Balance
+   * On mount, fetches the demo wallet balance from Supabase `user_wallets`.
+   * A Supabase Realtime channel subscribes to UPDATE events on the same table.
+   * When the BuySellTerminal modifies the balance, the change propagates here
+   * instantly via WebSocket — no polling required. The balance display triggers
+   * a CSS `price-pulse` animation whenever the value changes.
+   */
 
   useEffect(() => {
     const fetchBalance = async () => {
@@ -23,7 +34,9 @@ const TopNavBar = () => {
         }
 
         if (data) {
-          setBalance(Number(data.total_balance));
+          const bal = Number(data.total_balance);
+          prevBalanceRef.current = bal;
+          setBalance(bal);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";
@@ -42,13 +55,21 @@ const TopNavBar = () => {
         { event: "UPDATE", schema: "public", table: "user_wallets" },
         (payload) => {
           if (payload.new) {
-            setBalance(Number(payload.new.total_balance));
+            const newBal = Number(payload.new.total_balance);
+            if (newBal !== prevBalanceRef.current) {
+              prevBalanceRef.current = newBal;
+              setBalance(newBal);
+              setPulseBalance(true);
+              setTimeout(() => setPulseBalance(false), 700);
+            }
           }
         },
       )
       .subscribe((status) => {
-        if (status === "SUBSCRIPTION_ERROR") {
-          console.error("Failed to subscribe to wallet updates");
+        if (status === "CHANNEL_ERROR") {
+          console.error("Wallet Realtime: channel error");
+        } else if (status === "TIMED_OUT" || status === "CLOSED") {
+          console.warn("Wallet Realtime: channel", status);
         }
       });
 
@@ -58,13 +79,20 @@ const TopNavBar = () => {
   }, []);
 
   return (
-    <header className="h-12 flex items-center justify-between px-4 bg-card border-b border-border">
+    <header
+      className="h-12 flex items-center justify-between px-4 sticky top-0 z-50"
+      style={{
+        background: "rgba(3,7,18,0.85)",
+        backdropFilter: "blur(20px)",
+        borderBottom: "1px solid rgba(255,255,255,0.07)",
+      }}
+    >
       <div className="flex items-center gap-6">
         <span
           className="text-primary font-bold text-lg tracking-tight cursor-pointer select-none hover:text-primary/80 transition-colors"
           onClick={() => navigate("/")}
         >
-          CryptoX
+          Kinetix
         </span>
         <nav className="hidden md:flex items-center gap-4 text-sm text-muted-foreground">
           <button
@@ -88,16 +116,6 @@ const TopNavBar = () => {
             Markets
           </button>
           <button
-            onClick={() => navigate("/trade")}
-            className={`cursor-pointer transition-colors hover:text-foreground ${
-              location.pathname === "/trade"
-                ? "text-foreground font-medium"
-                : ""
-            }`}
-          >
-            Trade
-          </button>
-          <button
             onClick={() => navigate("/futures")}
             className={`cursor-pointer transition-colors hover:text-foreground ${
               location.pathname === "/futures"
@@ -113,7 +131,11 @@ const TopNavBar = () => {
         <div className="flex items-center gap-2 text-sm">
           <Wallet className="h-4 w-4 text-primary" />
           <span className="text-muted-foreground">Balance:</span>
-          <span className="text-foreground font-semibold">
+          <span
+            className={`text-foreground font-semibold transition-colors ${
+              pulseBalance ? "animate-price-pulse" : ""
+            }`}
+          >
             $
             {balance.toLocaleString(undefined, {
               minimumFractionDigits: 2,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo, memo } from "react";
 import { createChart, ColorType, CandlestickSeries } from "lightweight-charts";
 import { TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
 import { useMarket } from "@/contexts/MarketContext";
@@ -167,17 +167,46 @@ const TradingChart = () => {
       resizeObserver.disconnect();
       chart.remove();
     };
-  }, [interval]);
+  }, [interval, selectedCoinId]);
 
   const handleIntervalChange = (t: string) => {
     setInterval_(t);
   };
 
+  /**
+   * Mechanical Sympathy — useMemo on priceInfo display
+   * String formatting (toLocaleString, toFixed) runs on every render.
+   * Memoising behind priceInfo identity means the formatting only re-runs
+   * when the price data actually changes, not on interval-selector clicks,
+   * order book updates, or any other unrelated state changes in the parent.
+   */
+  const priceStats = useMemo(
+    () => ({
+      priceStr: priceInfo.price
+        ? priceInfo.price.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        : "...",
+      changeStr:
+        (priceInfo.change24h >= 0 ? "+" : "") +
+        priceInfo.change24h.toFixed(2) +
+        "%",
+      isPositive: priceInfo.change24h >= 0,
+      volStr: priceInfo.vol24h || "...",
+      highStr: priceInfo.high24h ? priceInfo.high24h.toLocaleString() : "...",
+      lowStr: priceInfo.low24h ? priceInfo.low24h.toLocaleString() : "...",
+    }),
+    [priceInfo],
+  );
+
   return (
     <div className="flex flex-col h-full bg-card">
       <div className="flex items-center gap-6 px-3 py-2 border-b border-border text-xs">
         <div className="flex items-center gap-2">
-          <span className="text-foreground font-bold text-sm">BTC/USDT</span>
+          <span className="text-foreground font-bold text-sm">
+            {selectedSymbol ? `${selectedSymbol}/USDT` : "BTC/USDT"}
+          </span>
           <span className="text-primary text-xs bg-primary/10 px-1.5 py-0.5 rounded">
             Spot
           </span>
@@ -186,48 +215,36 @@ const TradingChart = () => {
           <span className="text-muted-foreground">Price </span>
           <span
             className={`font-semibold ${
-              priceInfo.change24h >= 0 ? "text-success" : "text-danger"
+              priceStats.isPositive ? "text-success" : "text-danger"
             }`}
           >
-            {priceInfo.price
-              ? priceInfo.price.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
-              : "..."}
+            {priceStats.priceStr}
           </span>
         </div>
         <div className="flex items-center gap-1">
-          {priceInfo.change24h >= 0 ? (
+          {priceStats.isPositive ? (
             <TrendingUp className="h-3 w-3 text-success" />
           ) : (
             <TrendingDown className="h-3 w-3 text-danger" />
           )}
           <span className="text-muted-foreground">24h </span>
           <span
-            className={
-              priceInfo.change24h >= 0 ? "text-success" : "text-danger"
-            }
+            className={priceStats.isPositive ? "text-success" : "text-danger"}
           >
-            {priceInfo.change24h >= 0 ? "+" : ""}
-            {priceInfo.change24h.toFixed(2)}%
+            {priceStats.changeStr}
           </span>
         </div>
         <div>
           <span className="text-muted-foreground">24h Vol </span>
-          <span className="text-foreground">{priceInfo.vol24h || "..."}</span>
+          <span className="text-foreground">{priceStats.volStr}</span>
         </div>
         <div>
           <span className="text-muted-foreground">High </span>
-          <span className="text-foreground">
-            {priceInfo.high24h ? priceInfo.high24h.toLocaleString() : "..."}
-          </span>
+          <span className="text-foreground">{priceStats.highStr}</span>
         </div>
         <div>
           <span className="text-muted-foreground">Low </span>
-          <span className="text-foreground">
-            {priceInfo.low24h ? priceInfo.low24h.toLocaleString() : "..."}
-          </span>
+          <span className="text-foreground">{priceStats.lowStr}</span>
         </div>
       </div>
       <div className="flex items-center gap-1 px-3 py-1 border-b border-border text-[10px] text-muted-foreground">
@@ -254,4 +271,8 @@ const TradingChart = () => {
   );
 };
 
-export default TradingChart;
+// React.memo: skips re-render when the *parent* re-renders without changing
+// the props passed to TradingChart. Note: MarketContext updates (selectedCoinId,
+// selectedSymbol) still trigger a re-render because the component subscribes
+// via useMarket() — memo only prevents unnecessary parent-driven renders.
+export default memo(TradingChart);

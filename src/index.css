@@ -4,48 +4,50 @@
 
 @layer base {
   :root {
-    --background: 220 20% 4%;
+    /* Web3 Deep Space base — #030712 */
+    --background: 225 71% 4%;
     --foreground: 40 10% 90%;
 
-    --card: 225 15% 8%;
+    --card: 225 50% 6%;
     --card-foreground: 40 10% 90%;
 
-    --popover: 225 15% 10%;
+    --popover: 225 50% 8%;
     --popover-foreground: 40 10% 90%;
 
+    /* Binance Yellow — accent-only, used as glow on active states */
     --primary: 45 88% 50%;
-    --primary-foreground: 220 20% 4%;
+    --primary-foreground: 225 71% 4%;
 
-    --secondary: 225 15% 12%;
+    --secondary: 225 30% 10%;
     --secondary-foreground: 40 10% 75%;
 
-    --muted: 225 12% 14%;
-    --muted-foreground: 220 10% 50%;
+    --muted: 225 20% 12%;
+    --muted-foreground: 220 10% 45%;
 
     --accent: 45 88% 50%;
-    --accent-foreground: 220 20% 4%;
+    --accent-foreground: 225 71% 4%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 225 12% 16%;
-    --input: 225 12% 16%;
+    --border: 225 30% 14%;
+    --input: 225 30% 12%;
     --ring: 45 88% 50%;
 
-    --radius: 0.375rem;
+    --radius: 0.5rem;
 
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     --danger: 0 72% 51%;
     --danger-foreground: 0 0% 100%;
 
-    --sidebar-background: 225 15% 8%;
+    --sidebar-background: 225 50% 6%;
     --sidebar-foreground: 40 10% 75%;
     --sidebar-primary: 45 88% 50%;
-    --sidebar-primary-foreground: 220 20% 4%;
-    --sidebar-accent: 225 12% 14%;
+    --sidebar-primary-foreground: 225 71% 4%;
+    --sidebar-accent: 225 20% 12%;
     --sidebar-accent-foreground: 40 10% 90%;
-    --sidebar-border: 225 12% 16%;
+    --sidebar-border: 225 30% 14%;
     --sidebar-ring: 45 88% 50%;
   }
 }
@@ -56,8 +58,11 @@
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    @apply text-foreground;
+
+    background-color: #030712;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      sans-serif;
   }
 
   /* Custom scrollbar for the trading UI */
@@ -97,10 +102,61 @@
     background-color: hsl(var(--danger) / 0.1);
   }
 
+  /* ── Glassmorphic Bento Card ── */
+  .bento-card {
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    background-color: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1.25rem;
+    transition: transform 0.2s ease, box-shadow 0.25s ease;
+  }
+  .bento-card:hover {
+    transform: scale(1.005);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
+  }
+
+  /* ── Binance Yellow glow — active/buy states only ── */
+  .glow-primary {
+    box-shadow: 0 0 18px hsl(45 88% 50% / 0.45);
+  }
+  .btn-buy-glow {
+    box-shadow: 0 0 22px hsl(142 71% 45% / 0.5);
+  }
+  .btn-sell-glow {
+    box-shadow: 0 0 22px hsl(0 72% 51% / 0.45);
+  }
+
+  /* ── Price pulse animation (TopNavBar balance update) ── */
+  @keyframes price-pulse {
+    0% {
+      text-shadow: none;
+      color: inherit;
+    }
+    40% {
+      text-shadow: 0 0 14px hsl(45 88% 50% / 0.9);
+      color: hsl(45 88% 60%);
+    }
+    100% {
+      text-shadow: none;
+      color: inherit;
+    }
+  }
+  .animate-price-pulse {
+    animation: price-pulse 0.65s ease-out;
+  }
+
+  /* ── Order book row pulse ── */
   @keyframes pulse-row {
-    0% { opacity: 1; }
-    50% { opacity: 0.6; }
-    100% { opacity: 1; }
+    0% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+    100% {
+      opacity: 1;
+    }
   }
   .animate-pulse-row {
     animation: pulse-row 0.4s ease-in-out;

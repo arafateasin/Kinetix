@@ -9,31 +9,35 @@ import { MarketProvider } from "@/contexts/MarketContext";
 const Index = () => {
   return (
     <MarketProvider>
-      <div className="flex flex-col h-screen overflow-hidden bg-background">
+      <div
+        className="flex flex-col h-screen overflow-hidden"
+        style={{ background: "#030712" }}
+      >
         <TopNavBar />
-        <div className="flex-1 grid grid-cols-[240px_1fr_280px] grid-rows-[1fr_240px] gap-px bg-border overflow-hidden">
-          {/* Left: Markets */}
-          <div className="row-span-2 overflow-hidden">
+        {/* ── Bento Grid Layout ── */}
+        <div className="flex-1 grid grid-cols-12 grid-rows-2 gap-4 p-4 overflow-hidden">
+          {/* Markets List — col-span-3, full height */}
+          <div className="bento-card col-span-3 row-span-2 overflow-hidden">
             <MarketsList />
           </div>
 
-          {/* Center-Top: Chart */}
-          <div className="overflow-hidden">
+          {/* Trading Chart — col-span-6, top row */}
+          <div className="bento-card col-span-6 overflow-hidden">
             <TradingChart />
           </div>
 
-          {/* Right: Order Book + Buy/Sell */}
-          <div className="row-span-2 flex flex-col overflow-hidden">
+          {/* Order Book + Buy/Sell — col-span-3, full height */}
+          <div className="bento-card col-span-3 row-span-2 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-hidden">
               <OrderBook />
             </div>
-            <div className="border-t border-border">
+            <div className="border-t border-white/10">
               <BuySellTerminal />
             </div>
           </div>
 
-          {/* Center-Bottom: Trade History */}
-          <div className="overflow-hidden">
+          {/* Trade History — col-span-6, bottom row */}
+          <div className="bento-card col-span-6 overflow-hidden">
             <TradeHistory />
           </div>
         </div>

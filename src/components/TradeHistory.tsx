@@ -51,9 +51,11 @@ const TradeHistory = () => {
         },
       )
       .subscribe((status) => {
-        if (status === "SUBSCRIPTION_ERROR") {
-          console.error("Failed to subscribe to trade updates");
+        if (status === "CHANNEL_ERROR") {
+          console.error("Trade history Realtime: channel error");
           toast.error("Real-time updates unavailable");
+        } else if (status === "TIMED_OUT" || status === "CLOSED") {
+          console.warn("Trade history Realtime: channel", status);
         }
       });
 

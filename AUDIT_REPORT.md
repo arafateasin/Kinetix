@@ -1,4 +1,4 @@
-# CryptoX - Binance Clone Trading Platform
+# Kinetix - Binance Clone Trading Platform
 
 A fully functional cryptocurrency trading platform with real-time updates, dynamic coin pair support, and comprehensive error handling.
 

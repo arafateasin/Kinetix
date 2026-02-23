@@ -159,7 +159,7 @@ export default function Markets() {
           className="text-primary font-bold text-xl tracking-tight cursor-pointer select-none"
           onClick={() => navigate("/")}
         >
-          CryptoX
+          Kinetix
         </span>
         <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
           <button
